@@ -1,6 +1,8 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 def safe_number(value):
     try:
@@ -175,6 +177,14 @@ period = st.selectbox(
         "Max / Since IPO"
     ]
 )
+chart_type = st.selectbox(
+    "Choose chart type:",
+    ["Line", "Candlestick", "OHLC"]
+)
+
+show_volume = st.checkbox("Show Volume", value=True)
+show_ma20 = st.checkbox("Show MA20", value=True)
+show_ma50 = st.checkbox("Show MA50", value=False)
 
 interval_map = {
     "1d": "5m",
@@ -220,7 +230,35 @@ else:
             st.code(str(e))
 
     if not price_data.empty:
-        st.line_chart(price_data)
+        fig = go.Figure()
+
+for ticker in price_data.columns:
+    fig.add_trace(
+        go.Scatter(
+            x=price_data.index,
+            y=price_data[ticker],
+            mode="lines",
+            name=ticker
+        )
+    )
+
+fig.update_layout(
+    height=600,
+    template="plotly_white",
+    title="Price Comparison",
+    xaxis_title="Date",
+    yaxis_title="Price",
+    hovermode="x unified",
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1
+    )
+)
+
+st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Performance Summary")
 
