@@ -9,13 +9,32 @@ st.set_page_config(
 )
 
 st.title("📈 US Stock Dashboard")
-st.write("A simple dashboard for tracking US stock prices and fundamentals.")
+st.write("Track multiple US stocks with price charts and basic fundamentals.")
 
-ticker = st.text_input("Enter a US stock ticker:", value="AAPL").upper()
+tickers_input = st.text_input(
+    "Enter US stock tickers, separated by commas:",
+    value="AAPL, MSFT, NVDA, TSLA"
+)
+
+tickers = [
+    ticker.strip().upper()
+    for ticker in tickers_input.split(",")
+    if ticker.strip()
+]
 
 period = st.selectbox(
     "Choose time period:",
-    ["1d", "5d", "1mo", "3mo", "6mo", "YTD", "1y", "5y"]
+    [
+        "1d",
+        "5d",
+        "1mo",
+        "3mo",
+        "6mo",
+        "YTD",
+        "1y",
+        "5y",
+        "Max / Since IPO"
+    ]
 )
 
 interval_map = {
@@ -27,47 +46,102 @@ interval_map = {
     "YTD": "1d",
     "1y": "1d",
     "5y": "1wk",
+    "Max / Since IPO": "1mo",
 }
 
-yf_period = "ytd" if period == "YTD" else period
+if period == "YTD":
+    yf_period = "ytd"
+elif period == "Max / Since IPO":
+    yf_period = "max"
+else:
+    yf_period = period
 interval = interval_map[period]
 
-try:
-    stock = yf.Ticker(ticker)
-    data = stock.history(period=yf_period, interval=interval)
+if not tickers:
+    st.warning("Please enter at least one ticker.")
+else:
+    st.subheader("Price Comparison")
 
-    if data.empty:
-        st.error("No data found. Please check the ticker symbol.")
-    else:
-        st.subheader(f"{ticker} Price Chart")
-        st.line_chart(data["Close"])
+    price_data = pd.DataFrame()
 
-        latest_price = data["Close"].iloc[-1]
-        first_price = data["Close"].iloc[0]
-        change = latest_price - first_price
-        change_pct = change / first_price * 100
+    for ticker in tickers:
+        try:
+            data = yf.Ticker(ticker).history(
+                period=yf_period,
+                interval=interval
+            )
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Latest Close", f"${latest_price:.2f}")
-        col2.metric("Change", f"${change:.2f}")
-        col3.metric("Change %", f"{change_pct:.2f}%")
+            if not data.empty:
+                price_data[ticker] = data["Close"]
+            else:
+                st.warning(f"No price data found for {ticker}.")
 
-        st.subheader("Recent Price Data")
-        st.dataframe(data.tail(20))
+        except Exception as e:
+            st.error(f"Error loading data for {ticker}.")
+            st.code(str(e))
+
+    if not price_data.empty:
+        st.line_chart(price_data)
+
+        st.subheader("Performance Summary")
+
+        rows = []
+
+        for ticker in price_data.columns:
+            series = price_data[ticker].dropna()
+
+            if len(series) >= 2:
+                first_price = series.iloc[0]
+                latest_price = series.iloc[-1]
+                change = latest_price - first_price
+                change_pct = change / first_price * 100
+
+                rows.append({
+                    "Ticker": ticker,
+                    "First Price": round(first_price, 2),
+                    "Latest Price": round(latest_price, 2),
+                    "Change": round(change, 2),
+                    "Change %": round(change_pct, 2),
+                })
+
+        summary_df = pd.DataFrame(rows)
+        st.dataframe(summary_df, use_container_width=True)
 
         st.subheader("Basic Fundamentals")
-        info = stock.info
 
-        col4, col5, col6 = st.columns(3)
-        col4.metric("Market Cap", info.get("marketCap", "N/A"))
-        col5.metric("Trailing P/E", info.get("trailingPE", "N/A"))
-        col6.metric("Forward P/E", info.get("forwardPE", "N/A"))
+        fundamentals = []
 
-        st.caption(
-            "Data is provided by yfinance/Yahoo Finance and may be delayed or incomplete. "
-            "This dashboard is for learning and tracking only, not financial advice."
-        )
+        for ticker in tickers:
+            try:
+                stock = yf.Ticker(ticker)
+                info = stock.info
 
-except Exception as e:
-    st.error("Something went wrong while loading stock data.")
-    st.code(str(e))
+                fundamentals.append({
+                    "Ticker": ticker,
+                    "Company": info.get("shortName", "N/A"),
+                    "Market Cap": info.get("marketCap", "N/A"),
+                    "Trailing P/E": info.get("trailingPE", "N/A"),
+                    "Forward P/E": info.get("forwardPE", "N/A"),
+                    "Sector": info.get("sector", "N/A"),
+                    "Industry": info.get("industry", "N/A"),
+                })
+
+            except Exception as e:
+                fundamentals.append({
+                    "Ticker": ticker,
+                    "Company": "Error",
+                    "Market Cap": "N/A",
+                    "Trailing P/E": "N/A",
+                    "Forward P/E": "N/A",
+                    "Sector": "N/A",
+                    "Industry": "N/A",
+                })
+
+        fundamentals_df = pd.DataFrame(fundamentals)
+        st.dataframe(fundamentals_df, use_container_width=True)
+
+st.caption(
+    "Data is provided by yfinance/Yahoo Finance and may be delayed, incomplete, "
+    "or have different calculation methods from official filings. "
+    "This dashboard is for learning and tracking only, not financial advice."
+)
