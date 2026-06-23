@@ -230,7 +230,7 @@ if view_mode == "Single Stock Chart":
                         cols=1,
                         shared_xaxes=True,
                         vertical_spacing=0.06,
-                        row_heights=[0.72, 0.28]
+                        row_heights=[0.65, 0.35]
                     )
                 else:
                     fig = make_subplots(rows=1, cols=1)
@@ -324,10 +324,16 @@ if view_mode == "Single Stock Chart":
                     )
 
                 fig.update_layout(
-                    height=750 if show_volume else 560,
-                    template="plotly_white",
-                    xaxis_rangeslider_visible=False,
-                    hovermode="x unified",
+    height=750 if show_volume else 560,
+    template="plotly_white",
+    xaxis_rangeslider_visible=False,
+    hovermode="x unified",
+    xaxis=dict(
+        rangebreaks=[
+            dict(bounds=["sat", "mon"]),
+            dict(bounds=[16, 9.5], pattern="hour")
+        ]
+    ),
                     legend=dict(
                         orientation="h",
                         yanchor="bottom",
